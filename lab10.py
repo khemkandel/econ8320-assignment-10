@@ -78,21 +78,34 @@ class RegressionModel(object):
 
 
     def compute_se_logit2(self, beta):
-        beta = beta.flatten()
-        x = np.asarray(self.x)
-        z = x @ beta
-        p = self.sigmoid(z)
+      beta = beta.flatten()
+      x = np.asarray(self.x)
+      z = x @ beta
+      p = self.sigmoid(z)
 
-        # Numerical stability
-        eps = 1e-9
-        p = np.clip(p, eps, 1 - eps)
+      # Numerical stability
+      eps = 1e-9
+      p = np.clip(p, eps, 1 - eps)
 
-        W = np.diag(p * (1 - p))
-        Fisher_info = x.T @ W @ x
-        cov_matrix = np.linalg.inv(Fisher_info)
+      W = np.diag(p * (1 - p))
+      Fisher_info = x.T @ W @ x
+      cov_matrix = np.linalg.inv(Fisher_info)
 
-        se = np.sqrt(np.diag(cov_matrix)).reshape(-1, 1)
-        return se.flatten()
+      se = np.sqrt(np.diag(cov_matrix)).reshape(-1, 1)
+      return se.flatten()
+
+    def compute_se_logit3 (self,beta):
+      beta = beta.flatten()
+      x = np.asarray(self.x)
+      y = np.asarray(self.y)
+
+      # === 4. Simplified Standard Error Estimation ===
+      y_bar = y.mean()
+      sigma_squared_hat = len(y) * y_bar * (1 - y_bar)
+      cov_matrix_simplified = sigma_squared_hat * np.linalg.inv(x.T @ x)
+      se_simplified = np.sqrt(np.diag(cov_matrix_simplified))
+      return se_simplified
+
 
 
 
@@ -130,9 +143,10 @@ class RegressionModel(object):
       y = self.y
       n, k = np.shape(x)
       init_beta = np.zeros(k)
-      result = minimize(self.likelihood, init_beta, args=(x.values, y.values), method='BFGS', jac=self.gradient, options={'disp': True, 'maxiter': 10000})
+      #result = minimize(self.likelihood, init_beta, args=(x.values, y.values), method='BFGS', jac=self.gradient, options={'disp': True, 'maxiter': 10000})
+      result = minimize(self.likelihood, init_beta, args=(x.values, y.values), method='BFGS', options={'disp': True, 'maxiter': 10000})
       beta = result.x
-      serror = self.compute_se_logit(beta)
+      serror = self.compute_se_logit3(beta)
       z_stat = beta / serror.flatten()
       pval = 2 * (1 - stat.norm.cdf(np.abs(z_stat)))
 
